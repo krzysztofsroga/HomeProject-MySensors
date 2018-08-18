@@ -16,20 +16,22 @@
 #include <MySensors.h>  
 #include <Bounce2.h>
 
-constexpr int PCF_NUMBER = 6;
+template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
+
 constexpr int PCF_ADDRESSES[] = {0x20, 0x21, 0x22, 0x38, 0x39, 0x3A}; //TODO make sure those are real values
+constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
-
+constexpr int LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
 constexpr int BUTTON_START_PIN = 10;
-constexpr int BUTTON_NUMBER = PCF_NUMBER * PCF_PINS; //TODO change it to real value
 
-constexpr int SAVE_START = 0; // TODO maybe this doesn't need to be defined
+constexpr int RELAY_ON = 1;
+constexpr int RELAY_OFF = 0;
 
-PCF8574 expanders[PCF_NUMBER]; 
-Bounce debouncers[BUTTON_NUMBER];
+PCF8574 expanders[PCF_COUNT]; 
+Bounce debouncers[LIGHT_COUNT];
 
 void setUpOutputs() {
-  for(int i = 0; i < PCF_NUMBER; ++i) {
+  for(int i = 0; i < PCF_COUNT; ++i) {
     expanders[i].begin(PCF_ADDRESSES[i]);
     for(int j = 0; j < PCF_PINS; ++j) {
       expanders[i].pinMode(j, OUTPUT);
@@ -38,7 +40,7 @@ void setUpOutputs() {
 }
 
 void setUpInputs() {
-  for(int i = 0; i < BUTTON_NUMBER; ++i) {
+  for(int i = 0; i < LIGHT_COUNT; ++i) {
     int pin = BUTTON_START_PIN + i;
     pinMode(pin, INPUT_PULLUP);
     debouncers[i].attach(pin);
@@ -56,18 +58,43 @@ void setup() {
 
 }
 
+void relayWrite(int i, int newState) {
+  int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8)
+  int pin = i % PCF_PINS;
+  expanders[i].digitalWrite(pin, newState ? RELAY_ON : RELAY_OFF);
+}
+
+void saveAndSet(int i, int newState) {
+  saveState(i, newState);
+  relayWrite(i, newState);
+}
+
 void loop() {
-  // put your main code here, to run repeatedly:
+  for(int i = 0; i < LIGHT_COUNT; ++i) {
+    if(debouncers[i].update()) {
+      int value = debouncers[i].read();
+      if(value == LOW) {
+        boolean newState = !loadState(i);
+        saveState(i, newState);
+        relayWrite(i, newState);
+        MyMessage msg(i, V_LIGHT);
+        send(msg.set(newState));
+      }
+    }
+  }
 
 }
 
 void presentation() {
   sendSketchInfo("Relay", "1.0");
+  for (int i = 0; i < LIGHT_COUNT; ++i) {
+    present(i, S_LIGHT);
+  }
 }
 
 void receive(const MyMessage &message) {
   if (message.type == V_LIGHT) {
-    
+    saveAndSet(message.sensor, message.getBool());
   }
 }
 

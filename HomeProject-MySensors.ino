@@ -18,14 +18,14 @@
 
 template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
 
-constexpr int PCF_ADDRESSES[] = {0x20, 0x21, 0x22, 0x38, 0x39, 0x3A}; //TODO make sure those are real values
+constexpr int PCF_ADDRESSES[] = {0x38}; //TODO make sure those are real values
 constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
 constexpr int LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
-constexpr int BUTTON_START_PIN = 10;
+constexpr int BUTTON_START_PIN = 22;
 
-constexpr int RELAY_ON = 1;
-constexpr int RELAY_OFF = 0;
+constexpr int RELAY_ON = 0;
+constexpr int RELAY_OFF = 1;
 
 PCF8574 expanders[PCF_COUNT]; 
 Bounce debouncers[LIGHT_COUNT];
@@ -35,6 +35,7 @@ void setUpOutputs() {
     expanders[i].begin(PCF_ADDRESSES[i]);
     for(int j = 0; j < PCF_PINS; ++j) {
       expanders[i].pinMode(j, OUTPUT);
+      expanders[i].digitalWrite(j, RELAY_OFF); //TODO REMOVE THIS LINE, RESTORE PREVIOUS STATE
     }
   }
 }
@@ -61,7 +62,13 @@ void setup() {
 void relayWrite(int i, int newState) {
   int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8)
   int pin = i % PCF_PINS;
-  expanders[i].digitalWrite(pin, newState ? RELAY_ON : RELAY_OFF);
+  expanders[expander].digitalWrite(pin, newState ? RELAY_ON : RELAY_OFF);
+  Serial.print("changing");
+  Serial.print(expander);
+  Serial.print(" on ");
+  Serial.print(pin);
+  Serial.print(" to ");
+  Serial.println(newState);
 }
 
 void saveAndSet(int i, int newState) {

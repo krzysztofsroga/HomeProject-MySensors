@@ -1,3 +1,5 @@
+#define DONT_SAVE
+
 // START MYSENSORS SETTINGS
 
 #define MY_DEBUG // Enable debug prints to serial monitor
@@ -32,8 +34,12 @@ constexpr int BUTTON_PINS[LIGHT_COUNT] = {
   46, 47, 48, 49, 50, 51, 52, 53    // for 0x3A
 };
 
-constexpr int RELAY_ON = 0;
-constexpr int RELAY_OFF = 1;
+constexpr int RELAY_ON = 1;
+constexpr int RELAY_OFF = 0;
+
+#ifdef DONT_SAVE
+int states[LIGHT_COUNT] = {0};
+#endif
 
 PCF8574 expanders[PCF_COUNT]; 
 Bounce debouncers[LIGHT_COUNT];
@@ -80,8 +86,20 @@ void relayWrite(int i, int newState) {
 }
 
 void saveAndSet(int i, int newState) {
+#ifdef DONT_SAVE
+  states[i] = newState;
+#else
   saveState(i, newState);
+#endif
   relayWrite(i, newState);
+}
+
+boolean load(int i) {
+#ifdef DONT_SAVE
+  return states[i];
+#else
+  return loadState(i);
+#endif
 }
 
 void loop() {
@@ -89,9 +107,8 @@ void loop() {
     if(debouncers[i].update()) {
       int value = debouncers[i].read();
       if(value == LOW) {
-        boolean newState = !loadState(i);
-        saveState(i, newState);
-        relayWrite(i, newState);
+        boolean newState = !load(i);
+        saveAndSet(i, newState);
         MyMessage msg(i, V_LIGHT);
         send(msg.set(newState));
       }

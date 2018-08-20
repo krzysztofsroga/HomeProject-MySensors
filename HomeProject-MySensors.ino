@@ -22,6 +22,9 @@ template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
 
 //constexpr int PCF_ADDRESSES[] = {0x38}; //TODO make sure those are real values
 constexpr int PCF_ADDRESSES[] = {0x20, 0x21, 0x22, 0x38, 0x39, 0x3A}; //TODO make sure those are real values
+constexpr int PCF_RELAY_OFF[]  = {1,    1,    1,    0,    0,    0}; //defines which relays are Low and which High-Level-Trigger
+constexpr int PCF_RELAY_ON[] = {0,    0,    0,    1,    1,    1};
+
 constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
 constexpr int LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
@@ -34,8 +37,8 @@ constexpr int BUTTON_PINS[LIGHT_COUNT] = {
   46, 47, 48, 49, 50, 51, 52, 53    // for 0x3A
 };
 
-constexpr int RELAY_ON = 1;
-constexpr int RELAY_OFF = 0;
+//constexpr int RELAY_ON = 1;
+//constexpr int RELAY_OFF = 0;
 
 #ifdef DONT_SAVE
 int states[LIGHT_COUNT] = {0};
@@ -49,7 +52,7 @@ void setUpOutputs() {
     expanders[i].begin(PCF_ADDRESSES[i]);
     for(int j = 0; j < PCF_PINS; ++j) {
       expanders[i].pinMode(j, OUTPUT);
-      expanders[i].digitalWrite(j, RELAY_OFF); //TODO REMOVE THIS LINE, RESTORE PREVIOUS STATE
+      expanders[i].digitalWrite(j, PCF_RELAY_OFF[i]); //TODO REMOVE THIS LINE, RESTORE PREVIOUS STATE
     }
   }
 }
@@ -76,7 +79,7 @@ void setup() {
 void relayWrite(int i, int newState) {
   int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8)
   int pin = i % PCF_PINS;
-  expanders[expander].digitalWrite(pin, newState ? RELAY_ON : RELAY_OFF);
+  expanders[expander].digitalWrite(pin, newState ? PCF_RELAY_ON[expander] : PCF_RELAY_OFF[expander]);
   Serial.print("changing");
   Serial.print(expander);
   Serial.print(" on ");

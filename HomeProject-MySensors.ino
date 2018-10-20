@@ -69,7 +69,7 @@ void setUpInputs() {
 }
 
 void before() {
- // setUpOutputs();
+  setUpOutputs();
   setUpInputs();
 }
 

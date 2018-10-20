@@ -29,8 +29,8 @@ constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
 constexpr int LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
 constexpr int BUTTON_PINS[LIGHT_COUNT] = {  
-  18,  19,  2,  3,  4,  5,  6,  7,    // for 0x20
-  8,  9,  10, 11, 14, 15, 16, 17,   // for 0x21
+  2,  3,  4,  5,  6,  7,  8,  9,   // for 0x20
+  10, 11, 14, 15, 16, 17, 18, 19,  // for 0x21
   22, 23, 24, 25, 26, 27, 28, 29,   // for 0x22
   30, 31, 32, 33, 34, 35, 36, 37,   // for 0x38
   38, 39, 40, 41, 42, 43, 44, 45,   // for 0x39
@@ -43,7 +43,7 @@ int working = 0;
 //constexpr int RELAY_OFF = 0;
 
 #ifdef DONT_SAVE
-int states[LIGHT_COUNT] = {0};
+volatile int states[LIGHT_COUNT] = {0};
 #endif
 
 PCF8574 expanders[PCF_COUNT]; 
@@ -114,12 +114,17 @@ void loop() {
   }
   working++;
   for(int i = 0; i < LIGHT_COUNT; ++i) {
-    states[i] = i % 2;
+    //states[i] = i % 2;
     if(debouncers[i].update()) {
       int value = debouncers[i].read();
       if(value == LOW) {
+        Serial.print("old state");
+        Serial.println(load(i));
         boolean newState = !load(i);
+        Serial.print("new state");
+        Serial.println(newState);
         saveAndSet(i, newState);
+        //states[i] = newState;
         MyMessage msg(i, V_LIGHT);
         send(msg.set(newState));
       }

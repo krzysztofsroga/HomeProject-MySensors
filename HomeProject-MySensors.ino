@@ -2,6 +2,10 @@
 
 // START MYSENSORS SETTINGS
 
+#if !defined(__AVR_ATmega2560__)
+  #error "Arduino MEGA2560 should be used"
+#endif
+
 #define MY_DEBUG // Enable debug prints to serial monitor
 #define MY_GATEWAY_SERIAL // Enable serial gateway
 #define MY_INCLUSION_MODE_FEATURE // Enable inclusion mode
@@ -17,6 +21,7 @@
 #include <SPI.h>
 #include <MySensors.h>  
 #include <Bounce2.h>
+#include <Adafruit_PWMServoDriver.h> // 1.0.2 from arduino repo
 
 template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
 
@@ -24,6 +29,8 @@ template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
 constexpr int PCF_ADDRESSES[] = {0x20, 0x21, 0x22, 0x38, 0x39, 0x3A}; //TODO make sure those are real values
 constexpr int PCF_RELAY_OFF[]  = {1,    1,    1,    0,    0,    0}; //defines which relays are Low and which High-Level-Trigger
 constexpr int PCF_RELAY_ON[] = {0,    0,    0,    1,    1,    1};
+
+constexpr int PWM_FREQUENCY = 60; //Hz
 
 constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
@@ -36,6 +43,8 @@ constexpr int BUTTON_PINS[LIGHT_COUNT] = {
   38, 39, 40, 41, 42, 43, 44, 45,   // for 0x39
   46, 47, 48, 49, 50, 51, 52, 53    // for 0x3A
 };
+
+Adafruit_PWMServoDriver ledDriver = Adafruit_PWMServoDriver(0x40); //run PCA9685PW on 0x40 (default)
 
 int working = 0;
 
@@ -57,6 +66,8 @@ void setUpOutputs() {
       expanders[i].digitalWrite(j, PCF_RELAY_OFF[i]); //TODO REMOVE THIS LINE, RESTORE PREVIOUS STATE
     }
   }
+  ledDriver.begin();
+  ledDriver.setPWMFreq(PWM_FREQUENCY);
 }
 
 void setUpInputs() {
@@ -145,5 +156,3 @@ void receive(const MyMessage &message) {
     saveAndSet(message.sensor, message.getBool());
   }
 }
-
-

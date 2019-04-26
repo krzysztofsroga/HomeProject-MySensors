@@ -1,5 +1,9 @@
 #define DONT_SAVE
 
+#if !defined(__AVR_ATmega2560__)
+  #error "Arduino MEGA2560 should be used"
+#endif
+
 // START MYSENSORS SETTINGS
 
 #define MY_DEBUG // Enable debug prints to serial monitor
@@ -16,7 +20,8 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <MySensors.h>  
-#include <Bounce2.h>
+#include <Bounce2.h> // docummentation: https://github.com/thomasfredericks/Bounce2/wiki
+#include <Adafruit_PWMServoDriver.h> // 1.0.2 from arduino repo
 
 template <typename T, size_t N> constexpr size_t countof(T(&)[N]) { return N; }
 
@@ -25,10 +30,17 @@ constexpr int PCF_ADDRESSES[] = {0x20, 0x21, 0x22, 0x38, 0x39, 0x3A}; //TODO mak
 constexpr int PCF_RELAY_OFF[]  = {1,    1,    1,    0,    0,    0}; //defines which relays are Low and which High-Level-Trigger
 constexpr int PCF_RELAY_ON[] = {0,    0,    0,    1,    1,    1};
 
+constexpr int PCA_ADDRESS = 0x40;
+constexpr int PWM_FREQUENCY = 60; //Hz
+constexpr int PCA_LED_ON_STATE = 4095;
+constexpr int PCA_LED_OFF_STATE = 0;
+
 constexpr int PCF_COUNT = countof(PCF_ADDRESSES); //6;
 constexpr int PCF_PINS = 8;
-constexpr int LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
-constexpr int BUTTON_PINS[LIGHT_COUNT] = {  
+constexpr int LED_LIGHT_COUNT = 16;
+constexpr int AC_LIGHT_COUNT = PCF_COUNT * PCF_PINS; 
+constexpr int TOTAL_LIGHT_COUNT = LED_LIGHT_COUNT + AC_LIGHT_COUNT;
+constexpr int AC_BUTTON_PINS[AC_LIGHT_COUNT] = {  
   2,  3,  4,  5,  6,  7,  8,  9,   // for 0x20
   10, 11, 14, 15, 16, 17, 18, 19,  // for 0x21
   22, 23, 24, 25, 26, 27, 28, 29,   // for 0x22
@@ -37,17 +49,20 @@ constexpr int BUTTON_PINS[LIGHT_COUNT] = {
   46, 47, 48, 49, 50, 51, 52, 53    // for 0x3A
 };
 
+constexpr int LED_BUTTON_PINS[LED_LIGHT_COUNT] = {
+  A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15 // for 0x40
+};
+
 int working = 0;
 
-//constexpr int RELAY_ON = 1;
-//constexpr int RELAY_OFF = 0;
-
 #ifdef DONT_SAVE
-volatile int states[LIGHT_COUNT] = {0};
+  volatile int states[TOTAL_LIGHT_COUNT] = {0};
 #endif
 
 PCF8574 expanders[PCF_COUNT]; 
-Bounce debouncers[LIGHT_COUNT];
+Adafruit_PWMServoDriver ledDriver = Adafruit_PWMServoDriver(PCA_ADDRESS); 
+
+Bounce debouncers[TOTAL_LIGHT_COUNT];
 
 void setUpOutputs() {
   for(int i = 0; i < PCF_COUNT; ++i) {
@@ -57,11 +72,13 @@ void setUpOutputs() {
       expanders[i].digitalWrite(j, PCF_RELAY_OFF[i]); //TODO REMOVE THIS LINE, RESTORE PREVIOUS STATE
     }
   }
+  ledDriver.begin();
+  ledDriver.setPWMFreq(PWM_FREQUENCY);
 }
 
 void setUpInputs() {
-  for(int i = 0; i < LIGHT_COUNT; ++i) {
-    int pin = BUTTON_PINS[i];
+  for(int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
+    int pin = i < AC_LIGHT_COUNT ? AC_BUTTON_PINS[i] : LED_BUTTON_PINS[i - AC_LIGHT_COUNT];
     pinMode(pin, INPUT_PULLUP);
     debouncers[i].attach(pin);
     debouncers[i].interval(5);
@@ -75,11 +92,18 @@ void before() {
 
 void setup() {
   
-
 }
 
-void relayWrite(int i, int newState) {
-  int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8)
+void ledWrite(int i, int newState) {
+  ledDriver.setPin(i, newState ? PCA_LED_ON_STATE : PCA_LED_OFF_STATE);
+  Serial.print("Changing led ");
+  Serial.print(i);
+  Serial.print(" to ");
+  Serial.println(newState); 
+}
+
+void acWrite(int i, int newState) {
+  int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8) EDIT: It should be optimized out anyway
   int pin = i % PCF_PINS;
   expanders[expander].digitalWrite(pin, newState ? PCF_RELAY_ON[expander] : PCF_RELAY_OFF[expander]);
   Serial.print("changing");
@@ -88,6 +112,14 @@ void relayWrite(int i, int newState) {
   Serial.print(pin);
   Serial.print(" to ");
   Serial.println(newState);
+}
+
+void relayWrite(int i, int newState) {
+  if (i < AC_LIGHT_COUNT) {
+    acWrite(i, newState);
+  } else {
+    ledWrite(i - AC_LIGHT_COUNT, newState);
+  }
 }
 
 void saveAndSet(int i, int newState) {
@@ -113,7 +145,7 @@ void loop() {
   Serial.println(working);
   }
   working++;
-  for(int i = 0; i < LIGHT_COUNT; ++i) {
+  for(int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
     //states[i] = i % 2;
     if(debouncers[i].update()) {
       int value = debouncers[i].read();
@@ -135,8 +167,8 @@ void loop() {
 
 void presentation() {
   sendSketchInfo("Relay", "1.0");
-  for (int i = 0; i < LIGHT_COUNT; ++i) {
-    present(i, S_LIGHT);
+  for (int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
+    present(i, S_LIGHT); //TODO present dimmable light for leds
   }
 }
 
@@ -145,5 +177,3 @@ void receive(const MyMessage &message) {
     saveAndSet(message.sensor, message.getBool());
   }
 }
-
-

@@ -31,7 +31,7 @@ constexpr int PCF_RELAY_OFF[]  = {1,    1,    1,    0,    0,    0}; //defines wh
 constexpr int PCF_RELAY_ON[] = {0,    0,    0,    1,    1,    1};
 
 constexpr int PCA_ADDRESS = 0x40;
-constexpr int PWM_FREQUENCY = 60; //Hz
+constexpr int PWM_FREQUENCY = 480; //Hz
 constexpr int PCA_LED_ON_STATE = 4095;
 constexpr int PCA_LED_OFF_STATE = 0;
 
@@ -53,11 +53,26 @@ constexpr int LED_BUTTON_PINS[LED_LIGHT_COUNT] = {
   A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15 // for 0x40
 };
 
+constexpr int LINEAR_PWM_LED[101] = {
+   0, 
+   1, 3, 6, 10, 14, 19, 25, 32, 40, 48, 
+   57, 67, 78, 90, 102, 116, 130, 144, 160, 177, 
+   194, 212, 231, 250, 271, 292, 314, 337, 361, 385, 
+   411, 437, 464, 491, 520, 549, 579, 610, 642, 674, 
+   708, 742, 777, 812, 849, 886, 924, 963, 1003, 1044, 
+   1085, 1127, 1170, 1214, 1258, 1304, 1350, 1397, 1445, 1493, 
+   1543, 1593, 1644, 1696, 1748, 1802, 1856, 1911, 1967, 2023, 
+   2081, 2139, 2198, 2258, 2318, 2380, 2442, 2505, 2569, 2633, 
+   2699, 2765, 2832, 2900, 2968, 3038, 3108, 3179, 3251, 3324, 
+   3397, 3471, 3547, 3622, 3699, 3777, 3855, 3934, 4014, 4095   
+}
+
 int working = 0;
 
 #ifdef DONT_SAVE
   volatile int states[TOTAL_LIGHT_COUNT] = {0};
 #endif
+volatile int ledPercentages[LED_LIGHT_COUNT];
 
 PCF8574 expanders[PCF_COUNT]; 
 Adafruit_PWMServoDriver ledDriver = Adafruit_PWMServoDriver(PCA_ADDRESS); 
@@ -91,15 +106,20 @@ void before() {
 }
 
 void setup() {
-  
+  for(int i = 0; i < countof(ledPercentages); i++) {
+    ledPercentages[i] = PCA_LED_ON_STATE; //TODO initialize from memory
+  }
 }
 
 void ledWrite(int i, int newState) {
-  ledDriver.setPin(i, newState ? PCA_LED_ON_STATE : PCA_LED_OFF_STATE);
+  int v = newState ? ledPercentages[i] : PCA_LED_OFF_STATE;
+  ledDriver.setPin(i, v);
   Serial.print("Changing led ");
   Serial.print(i);
   Serial.print(" to ");
-  Serial.println(newState); 
+  Serial.print(newState); 
+  Serial.print(", pwm set to ");
+  Serial.println(v);
 }
 
 void acWrite(int i, int newState) {
@@ -168,12 +188,17 @@ void loop() {
 void presentation() {
   sendSketchInfo("Relay", "1.0");
   for (int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
-    present(i, S_LIGHT); //TODO present dimmable light for leds
+    present(i, i < AC_LIGHT_COUNT ? S_LIGHT : S_DIMMER); 
   }
 }
 
 void receive(const MyMessage &message) {
-  if (message.type == V_LIGHT) {
+  if (message.type == V_LIGHT || message.type == V_DIMMER) {
+    if(message.type == V_DIMMER) {
+      int dim = atoi(message.data);
+      int pwmValue = LINEAR_PWM_LED[dim];
+      ledPercentages[message.sensor - AC_LIGHT_COUNT] = pwmValue;
+    }
     saveAndSet(message.sensor, message.getBool());
-  }
+  } 
 }

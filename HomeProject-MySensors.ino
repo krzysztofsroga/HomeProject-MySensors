@@ -67,8 +67,6 @@ constexpr int LINEAR_PWM_LED[101] = {
    3397, 3471, 3547, 3622, 3699, 3777, 3855, 3934, 4014, 4095   
 };
 
-int working = 0;
-
 #ifdef DONT_SAVE
   volatile int states[TOTAL_LIGHT_COUNT] = {0};
 #endif
@@ -160,28 +158,15 @@ boolean load(int i) {
 }
 
 void loop() {
-  if((working%1000) == 0) {
-    Serial.print("working");
-  Serial.println(working);
-  }
-  working++;
   for(int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
-    //states[i] = i % 2;
     if(debouncers[i].update()) {
       int value = debouncers[i].read();
       if(value == LOW) {
-        Serial.print("old state");
-        Serial.println(load(i));
         boolean newState = !load(i);
-        Serial.print("new state");
-        Serial.println(newState);
         saveAndSet(i, newState);
-        //states[i] = newState;
         if (isDimmer(i)) {
           MyMessage msg(i, V_STATUS);
           send(msg.set(newState));
-         // MyMessage msg(i, V_DIMMER);
-         // send(msg.set(newState ? ledPercentages[i] : 0));
         } else {
           MyMessage msg(i, V_LIGHT);
           send(msg.set(newState));

@@ -164,13 +164,8 @@ void loop() {
       if(value == LOW) {
         boolean newState = !load(i);
         saveAndSet(i, newState);
-        if (isDimmer(i)) {
-          MyMessage msg(i, V_STATUS);
-          send(msg.set(newState));
-        } else {
-          MyMessage msg(i, V_LIGHT);
-          send(msg.set(newState));
-        }
+	MyMessage msg(i, isDimmer(i) ? V_STATUS : V_LIGHT);
+	send(msg.set(newState));
       }
     }
   }

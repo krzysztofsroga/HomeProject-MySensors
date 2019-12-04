@@ -177,18 +177,29 @@ void loop() {
         Serial.println(newState);
         saveAndSet(i, newState);
         //states[i] = newState;
-        MyMessage msg(i, V_LIGHT);
-        send(msg.set(newState));
+        if (isDimmer(i)) {
+          MyMessage msg(i, V_STATUS);
+          send(msg.set(newState));
+         // MyMessage msg(i, V_DIMMER);
+         // send(msg.set(newState ? ledPercentages[i] : 0));
+        } else {
+          MyMessage msg(i, V_LIGHT);
+          send(msg.set(newState));
+        }
       }
     }
   }
 
 }
 
+inline bool isDimmer(int i) {
+  return i >= TOTAL_LIGHT_COUNT;
+}
+
 void presentation() {
   sendSketchInfo("Relay", "1.0");
   for (int i = 0; i < TOTAL_LIGHT_COUNT; ++i) {
-    present(i, i < AC_LIGHT_COUNT ? S_LIGHT : S_DIMMER); 
+    present(i, isDimmer(i) ?  S_DIMMER : S_LIGHT); 
   }
 }
 

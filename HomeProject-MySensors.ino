@@ -112,24 +112,12 @@ void setup() {
 void ledWrite(int i, int newState) {
   int v = newState ? ledPercentages[i] : PCA_LED_OFF_STATE;
   ledDriver.setPin(i, v);
-  Serial.print("Changing led ");
-  Serial.print(i);
-  Serial.print(" to ");
-  Serial.print(newState); 
-  Serial.print(", pwm set to ");
-  Serial.println(v);
 }
 
 void acWrite(int i, int newState) {
   int expander = i / PCF_PINS; //TODO use bitshifts (since it's 8) EDIT: It should be optimized out anyway
   int pin = i % PCF_PINS;
   expanders[expander].digitalWrite(pin, newState ? PCF_RELAY_ON[expander] : PCF_RELAY_OFF[expander]);
-  Serial.print("changing");
-  Serial.print(expander);
-  Serial.print(" on ");
-  Serial.print(pin);
-  Serial.print(" to ");
-  Serial.println(newState);
 }
 
 void relayWrite(int i, int newState) {
